@@ -26,8 +26,8 @@ CryptoFile::CryptoFile(const std::string& key, CryptoAlgorithm algorithm) : key_
     }
 
     // Validate key length
-    if (key_.length() != 32) {
-        throw std::invalid_argument("Key must be exactly 32 characters long");
+    if (key_.size() != 32) {
+        throw std::invalid_argument("Key must be exactly 32 bytes long");
     }
 }
 
@@ -156,7 +156,19 @@ std::string CryptoFile::decrypt2Buffer(const std::string& inputFile) const {
     unsigned char* tag = nullptr;
     if (algorithm_ == CryptoAlgorithm::AES_256_GCM) {
         tag = new unsigned char[tag_length_];
+        inFile.seekg(0, std::ios::end);
+        std::streampos fileSize = inFile.tellg();
+        if (fileSize < iv_length_ + tag_length_) {
+            delete[] iv;
+            delete[] tag;
+            throw std::runtime_error("File too small for GCM decryption");
+        }
         inFile.seekg(-tag_length_, std::ios::end);
+        if (inFile.fail()) {
+            delete[] iv;
+            delete[] tag;
+            throw std::runtime_error("Failed to seek for GCM tag");
+        }
         inFile.read(reinterpret_cast<char*>(tag), tag_length_);
         if (inFile.gcount() != tag_length_) {
             delete[] iv;
@@ -164,6 +176,11 @@ std::string CryptoFile::decrypt2Buffer(const std::string& inputFile) const {
             throw std::runtime_error("Invalid input file format for GCM");
         }
         inFile.seekg(iv_length_, std::ios::beg); // Move back to start after IV
+        if (inFile.fail()) {
+            delete[] iv;
+            delete[] tag;
+            throw std::runtime_error("Failed to seek after IV");
+        }
     }
 
     // Create and initialize context
@@ -268,7 +285,19 @@ void CryptoFile::decrypt(const std::string& inputFile, const std::string& output
     unsigned char* tag = nullptr;
     if (algorithm_ == CryptoAlgorithm::AES_256_GCM) {
         tag = new unsigned char[tag_length_];
+        inFile.seekg(0, std::ios::end);
+        std::streampos fileSize = inFile.tellg();
+        if (fileSize < iv_length_ + tag_length_) {
+            delete[] iv;
+            delete[] tag;
+            throw std::runtime_error("File too small for GCM decryption");
+        }
         inFile.seekg(-tag_length_, std::ios::end);
+        if (inFile.fail()) {
+            delete[] iv;
+            delete[] tag;
+            throw std::runtime_error("Failed to seek for GCM tag");
+        }
         inFile.read(reinterpret_cast<char*>(tag), tag_length_);
         if (inFile.gcount() != tag_length_) {
             delete[] iv;
@@ -276,6 +305,11 @@ void CryptoFile::decrypt(const std::string& inputFile, const std::string& output
             throw std::runtime_error("Invalid input file format for GCM");
         }
         inFile.seekg(iv_length_, std::ios::beg); // Move back to start after IV
+        if (inFile.fail()) {
+            delete[] iv;
+            delete[] tag;
+            throw std::runtime_error("Failed to seek after IV");
+        }
     }
 
     // Create and initialize context
